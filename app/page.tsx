@@ -5,12 +5,21 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Leaf, MessageSquare } from 'lucide-react';
 
+import type { ChatMessage } from '@/lib/chat-types';
+
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
+
+import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from '@/components/ai-elements/sources';
 
 import {
   Message,
@@ -31,7 +40,7 @@ import {
 export default function Page() {
   const transport = useMemo(
     () =>
-      new DefaultChatTransport({
+      new DefaultChatTransport<ChatMessage>({
         api: '/api/chat',
       }),
     [],
@@ -42,18 +51,21 @@ export default function Page() {
     sendMessage,
     status,
     error,
-  } = useChat({
+    stop,
+  } = useChat<ChatMessage>({
     transport,
   });
+
+  const isGenerating = status === 'submitted' || status === 'streaming';
 
   const handleSubmit = (message: PromptInputMessage) => {
     const text = message.text.trim();
 
-    if (!text) {
+    if (!text || isGenerating) {
       return;
     }
 
-    sendMessage({ text });
+    void sendMessage({ text });
   };
 
   return (
@@ -89,17 +101,42 @@ export default function Page() {
               >
                 <MessageContent>
                   {message.parts.map((part, index) => {
-                    if (part.type !== 'text') {
-                      return null;
+                    if (part.type === 'text') {
+                      return (
+                        <MessageResponse
+                          key={`${message.id}-text-${index}`}
+                        >
+                          {part.text}
+                        </MessageResponse>
+                      );
                     }
 
-                    return (
-                      <MessageResponse
-                        key={`${message.id}-${index}`}
-                      >
-                        {part.text}
-                      </MessageResponse>
-                    );
+                    if (part.type === 'data-sources') {
+                      return (
+                        <Sources
+                          defaultOpen
+                          key={part.id ?? `${message.id}-sources-${index}`}
+                        >
+                          <SourcesTrigger count={part.data.length} />
+
+                          <SourcesContent>
+                            {part.data.map((source, sourceIndex) => (
+                              <Source
+                                href={source.url}
+                                key={`${source.url}-${source.section}-${sourceIndex}`}
+                                title={
+                                  source.section
+                                    ? `${source.title} — ${source.section}`
+                                    : source.title
+                                }
+                              />
+                            ))}
+                          </SourcesContent>
+                        </Sources>
+                      );
+                    }
+
+                    return null;
                   })}
                 </MessageContent>
               </Message>
@@ -127,7 +164,7 @@ export default function Page() {
               </PromptInputBody>
 
               <PromptInputFooter className="justify-end">
-                <PromptInputSubmit status={status} />
+                <PromptInputSubmit onStop={stop} status={status} />
               </PromptInputFooter>
             </PromptInput>
           </PromptInputProvider>
