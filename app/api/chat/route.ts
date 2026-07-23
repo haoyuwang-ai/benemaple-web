@@ -99,6 +99,14 @@ function isSourceLink(value: unknown): value is SourceLink {
 export async function POST(request: Request) {
   const apiBaseUrl = process.env.API_BASE_URL?.replace(/\/$/, '');
 
+  const apiInternalToken = process.env.API_INTERNAL_TOKEN;
+
+  if (!apiInternalToken) {
+    return Response.json(
+      { error: 'API_INTERNAL_TOKEN is not configured' },
+      { status: 500 },
+    );
+  }
   if (!apiBaseUrl) {
     return Response.json(
       { error: 'API_BASE_URL is not configured' },
@@ -134,6 +142,7 @@ export async function POST(request: Request) {
       headers: {
         Accept: 'text/event-stream',
         'Content-Type': 'application/json',
+        'X-Internal-API-Key': apiInternalToken,
       },
       body: JSON.stringify({
         question,
